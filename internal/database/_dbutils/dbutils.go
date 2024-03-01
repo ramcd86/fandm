@@ -2,7 +2,11 @@ package dbutils
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
 
 	"fandm/environment"
 
@@ -65,5 +69,30 @@ func SetUpDatabase() {
 			fmt.Println("Failed to create Schema 'reports'", err)
 			return
 		}
+
+		createAndPopulateActorsTable()
 	}
+}
+
+func createAndPopulateActorsTable() {
+	jsonFile, err := os.Open("internal/_json/actors/foods.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer jsonFile.Close()
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var result map[string]interface{}
+	json.Unmarshal([]byte(byteValue), &result)
+
+	// Print the map
+	fmt.Println(result)
+}
+
+func createAndPopulateConditionsTable() {
+}
+
+func createAndPopulateTreatmentsTable() {
 }
