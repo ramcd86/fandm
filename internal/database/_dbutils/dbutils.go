@@ -3,12 +3,11 @@ package dbutils
 import (
 	"database/sql"
 	"encoding/json"
+	"fandm/environment"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
-
-	"fandm/environment"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -49,22 +48,22 @@ func SetUpDatabase() {
 		}
 		// Create primary interactive tables.
 
-		_, err = db.Exec("CREATE TABLE IF NOT EXISTS treatments ( id INT AUTO_INCREMENT PRIMARY KEY, treatment_name TEXT NOT NULL, treatment_description TEXT NOT NULL, actort_interactions TEXT NOT NULL, condition_interactions TEXT NOT NULL, uuid VARCHAR(255) NOT NULL );")
+		_, err = db.Exec("CREATE TABLE IF NOT EXISTS treatments ( id INT AUTO_INCREMENT PRIMARY KEY, treatment_name TEXT NOT NULL, treatment_description TEXT NOT NULL, actort_interactions TEXT NOT NULL, condition_interactions TEXT NOT NULL);")
 		if err != nil {
 			fmt.Println("Failed to create Schema 'treatments'", err)
 			return
 		}
-		_, err = db.Exec("CREATE TABLE IF NOT EXISTS actors ( id INT AUTO_INCREMENT PRIMARY KEY, actor_name TEXT NOT NULL, actor_description TEXT NOT NULL, treatment_interactions TEXT NOT NULL, condition_interactions TEXT NOT NULL, uuid VARCHAR(255) NOT NULL );")
+		_, err = db.Exec("CREATE TABLE IF NOT EXISTS actors ( id INT AUTO_INCREMENT PRIMARY KEY, actor_name TEXT NOT NULL, actor_description TEXT NOT NULL, treatment_interactions TEXT NOT NULL, condition_interactions TEXT NOT NULL);")
 		if err != nil {
 			fmt.Println("Failed to create Schema 'actors'", err)
 			return
 		}
-		_, err = db.Exec("CREATE TABLE IF NOT EXISTS conditions ( id INT AUTO_INCREMENT PRIMARY KEY, condition_name TEXT NOT NULL, condition_description TEXT NOT NULL, actort_interactions TEXT NOT NULL, treatment_interactions TEXT NOT NULL, uuid VARCHAR(255) NOT NULL );")
+		_, err = db.Exec("CREATE TABLE IF NOT EXISTS conditions ( id INT AUTO_INCREMENT PRIMARY KEY, condition_name TEXT NOT NULL, condition_description TEXT NOT NULL, actort_interactions TEXT NOT NULL, treatment_interactions TEXT NOT NULL);")
 		if err != nil {
 			fmt.Println("Failed to create Schema 'conditions'", err)
 			return
 		}
-		_, err = db.Exec("CREATE TABLE IF NOT EXISTS reports ( id INT AUTO_INCREMENT PRIMARY KEY, reporter_condition VARCHAR(255) NOT NULL, reporter_treatment VARCHAR(255) NOT NULL, reporter_actor VARCHAR(255) NOT NULL, uuid VARCHAR(255) NOT NULL );")
+		_, err = db.Exec("CREATE TABLE IF NOT EXISTS reports ( id INT AUTO_INCREMENT PRIMARY KEY, reporter_condition VARCHAR(255) NOT NULL, reporter_treatment VARCHAR(255) NOT NULL, reporter_actor VARCHAR(255) NOT NULL);")
 		if err != nil {
 			fmt.Println("Failed to create Schema 'reports'", err)
 			return
@@ -79,16 +78,41 @@ func createAndPopulateActorsTable() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer jsonFile.Close()
 	byteValue, _ := ioutil.ReadAll(jsonFile)
+
 	if err != nil {
 		log.Fatal(err)
 	}
-	var result map[string]interface{}
+
+	var result map[string]string
+
 	json.Unmarshal([]byte(byteValue), &result)
 
-	// Print the map
-	fmt.Println(result)
+	insertActors(result)
+}
+
+func insertActors(actorsMap map[string]string) {
+	db, err := sql.Open("mysql", GetDbConnectionString())
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	stmt, err := db.Prepare("INSERT INTO actors(actor_name, actor_description, treatment_interactions, condition_interactions) VALUES(?, ?, ?, ?)")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for key, value := range actorsMap {
+		_, err = stmt.Exec(key, value, "", "")
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	fmt.Println("Data inserted successfully.")
 }
 
 func createAndPopulateConditionsTable() {
