@@ -70,13 +70,13 @@ func SetUpDatabase() {
 			return
 		}
 
-		createAndPopulateActorsTable("foods")
-		createAndPopulateActorsTable("diseases")
-		creareAndPopulateActorsTable("treatments")
+		createAndPopulateTables("foods")
+		createAndPopulateTables("diseases")
+		creareAndPopulateTables("treatments")
 	}
 }
 
-func createAndPopulateActorsTable(insertType string) {
+func createAndPopulateTables(insertType string) {
 	var filePath string
 
 	switch insertType {
