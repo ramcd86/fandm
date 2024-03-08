@@ -3,11 +3,12 @@ package dbutils
 import (
 	"database/sql"
 	"encoding/json"
-	"fandm/environment"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+
+	"fandm/environment"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -69,12 +70,25 @@ func SetUpDatabase() {
 			return
 		}
 
-		createAndPopulateActorsTable()
+		createAndPopulateActorsTable("foods")
+		createAndPopulateActorsTable("diseases")
+		creareAndPopulateActorsTable("treatments")
 	}
 }
 
-func createAndPopulateActorsTable() {
-	jsonFile, err := os.Open("internal/_json/actors/foods.json")
+func createAndPopulateActorsTable(insertType string) {
+	var filePath string
+
+	switch insertType {
+	case "foods":
+		filePath = "internal/_json/actors/foods.json"
+	case "diseases":
+		filePath = "internal/_json/conditions/diseases.json"
+	case "treatments":
+		filePath = "internal/_json/treatments/treatments.json"
+	}
+
+	jsonFile, err := os.Open(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
