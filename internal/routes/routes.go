@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"fandm/internal/actors"
 	"fandm/internal/register"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 func Routes() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /register", register.Register)
+	mux.HandleFunc("GET /actors", actors.GetActors)
 
 	serveStatic()
 

@@ -3,13 +3,12 @@ package dbutils
 import (
 	"database/sql"
 	"encoding/json"
+	"fandm/environment"
+	"fandm/internal/utls"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"sync"
-
-	"fandm/environment"
-	"fandm/internal/utls"
 
 	_ "github.com/go-sql-driver/mysql"
 )
