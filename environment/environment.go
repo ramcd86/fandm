@@ -1,5 +1,6 @@
 package environment
 
+// db connections.
 var DbConnection = map[string]string{
 	"DB_USER": "root",
 	"DB_PASS": "admin",
