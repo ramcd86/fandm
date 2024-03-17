@@ -75,109 +75,88 @@ func SetUpDatabase() {
 }
 
 func createAndPopulateTables(insertType string) {
-	dbCheckWaitGroup := sync.WaitGroup{}
-
 	var dataExists bool
 
-    checkData := func(insertTye string) bool {
-		        defer wg.Done()
-		        db, err := sql.Open("mysql", GetDbConnectionString())
-		        utls.Catch(err)
-		        rows, err := db.Query("SELECT 1 FROM " + insertType + " LIMIT = 1")
-		        utls.Catch(err)
-		        defer rows.Close()
-		        defer db.Close()
-		        return rows.Next()
-		    }
-
-	switch insertType {
-	case "foods":
-		dbCheckWaitGroup.Add(1)
-		dataExists = go func() bool {
-		        defer wg.Done()
-		        db, err := sql.Open("mysql", GetDbConnectionString())
-		        utls.Catch(err)
-		        rows, err := db.Query("SELECT 1 FROM actors LIMIT = 1")
-		        utls.Catch(err)
-		        defer rows.Close()
-		        defer db.Close()
-		        return rows.Next()
-		    }()
-	case "diseases":
-dbCheckWaitGroup.Add(1)
-		dataExists = go func() bool {
-		        defer wg.Done()
-		        db, err := sql.Open("mysql", GetDbConnectionString())
-		        utls.Catch(err)
-		        rows, err := db.Query("SELECT 1 FROM conditions LIMIT = 1")
-		        utls.Catch(err)
-		        defer rows.Close()
-		        defer db.Close()
-		        return rows.Next()
-		    }()
-	case "treatments":
-dbCheckWaitGroup.Add(1)
-		dataExists = go func() bool {
-		        defer wg.Done()
-		        db, err := sql.Open("mysql", GetDbConnectionString())
-		        utls.Catch(err)
-		        rows, err := db.Query("SELECT 1 FROM treatments LIMIT = 1")
-		        utls.Catch(err)
-		        defer rows.Close()
-		        defer db.Close()
-		        return rows.Next()
-		    }()
-	}
-
-	insertWaitGroup := sync.WaitGroup{}
-
-	grabData := func(filePath string, insertQuery string) {
-		defer winsertWaitGroup.Done()
-
-		var result map[string]string
-
-		jsonFile, err := os.Open(filePath)
+	checkData := func(checkType string, done chan bool) {
+		fmt.Println("Checking data for " + checkType)
+		db, err := sql.Open("mysql", GetDbConnectionString())
 		utls.Catch(err)
+		defer db.Close()
 
-		defer jsonFile.Close()
-		byteValue, _ := ioutil.ReadAll(jsonFile)
+		rows, err := db.Query("SELECT 1 FROM " + checkType + " LIMIT 1")
+		utls.Catch(err)
+		defer rows.Close()
 
-		json.Unmarshal([]byte(byteValue), &result)
+		dataExists := rows.Next()
 
-		insertActors(result, insertQuery)
+		done <- dataExists
 	}
+
+	dataCheckDone := make(chan bool)
 
 	switch insertType {
 	case "foods":
-
-		if !dataExists {
-			insertWaitGroup.Add(1)
-			go grabData("internal/_json/actors/foods.json",
-				`
-                INSERT INTO actors
-                    (actor_name, actor_description, treatment_interactions, condition_interactions)
-                VALUES(?, ?, ?, ?)
-            `)
-		}
+		go checkData("actors", dataCheckDone)
 	case "diseases":
-		insertWaitGroup.Add(1)
-		go grabData("internal/_json/conditions/diseases.json",
-			`
-            INSERT INTO conditions
-                (condition_name, condition_description, actor_interactions, treatment_interactions)
-            VALUES(?, ?, ?, ?)
-        `)
+		go checkData("conditions", dataCheckDone)
 	case "treatments":
-		insertWaitGroup.Add(1)
-		go grabData("internal/_json/treatments/treatments.json",
-			`
-            INSERT INTO 
-                treatments(treatment_name, treatment_description, actor_interactions, condition_interactions)
-            VALUES(?, ?, ?, ?)
-        `)
+		go checkData("treatments", dataCheckDone)
 	}
 
-	insertWaitGroup.Wait()
+	dataExists = <-dataCheckDone
+
+	var filePath, insertQuery string
+
+	switch insertType {
+	case "foods":
+		filePath = "internal/_json/actors/foods.json"
+		insertQuery = `
+            INSERT INTO actors
+            (actor_name, actor_description, treatment_interactions, condition_interactions)
+            VALUES(?, ?, ?, ?)
+        `
+	case "diseases":
+		filePath = "internal/_json/conditions/diseases.json"
+		insertQuery = `
+            INSERT INTO conditions
+            (condition_name, condition_description, actor_interactions, treatment_interactions)
+            VALUES(?, ?, ?, ?)
+        `
+	case "treatments":
+		filePath = "internal/_json/treatments/treatments.json"
+		insertQuery = `
+            INSERT INTO 
+            treatments(treatment_name, treatment_description, actor_interactions, condition_interactions)
+            VALUES(?, ?, ?, ?)
+        `
+	}
+
+	if !dataExists {
+		insertWaitGroup := sync.WaitGroup{}
+		insertWaitGroup.Add(1)
+
+		grabData := func(filePath string, insertQuery string) {
+			defer insertWaitGroup.Done()
+
+			var result map[string]string
+
+			jsonFile, err := os.Open(filePath)
+			utls.Catch(err)
+			defer jsonFile.Close()
+
+			byteValue, _ := ioutil.ReadAll(jsonFile)
+
+			json.Unmarshal([]byte(byteValue), &result)
+
+			insertActors(result, insertQuery)
+		}
+
+		go grabData(filePath, insertQuery)
+
+		insertWaitGroup.Wait()
+	} else {
+		fmt.Println(insertType + " data already exists")
+	}
 }
 
 func insertActors(dataMap map[string]string, insertQuery string) {
