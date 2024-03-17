@@ -75,10 +75,64 @@ func SetUpDatabase() {
 }
 
 func createAndPopulateTables(insertType string) {
-	wg := sync.WaitGroup{}
+	dbCheckWaitGroup := sync.WaitGroup{}
+
+	var dataExists bool
+
+    checkData := func(insertTye string) bool {
+		        defer wg.Done()
+		        db, err := sql.Open("mysql", GetDbConnectionString())
+		        utls.Catch(err)
+		        rows, err := db.Query("SELECT 1 FROM " + insertType + " LIMIT = 1")
+		        utls.Catch(err)
+		        defer rows.Close()
+		        defer db.Close()
+		        return rows.Next()
+		    }
+
+	switch insertType {
+	case "foods":
+		dbCheckWaitGroup.Add(1)
+		dataExists = go func() bool {
+		        defer wg.Done()
+		        db, err := sql.Open("mysql", GetDbConnectionString())
+		        utls.Catch(err)
+		        rows, err := db.Query("SELECT 1 FROM actors LIMIT = 1")
+		        utls.Catch(err)
+		        defer rows.Close()
+		        defer db.Close()
+		        return rows.Next()
+		    }()
+	case "diseases":
+dbCheckWaitGroup.Add(1)
+		dataExists = go func() bool {
+		        defer wg.Done()
+		        db, err := sql.Open("mysql", GetDbConnectionString())
+		        utls.Catch(err)
+		        rows, err := db.Query("SELECT 1 FROM conditions LIMIT = 1")
+		        utls.Catch(err)
+		        defer rows.Close()
+		        defer db.Close()
+		        return rows.Next()
+		    }()
+	case "treatments":
+dbCheckWaitGroup.Add(1)
+		dataExists = go func() bool {
+		        defer wg.Done()
+		        db, err := sql.Open("mysql", GetDbConnectionString())
+		        utls.Catch(err)
+		        rows, err := db.Query("SELECT 1 FROM treatments LIMIT = 1")
+		        utls.Catch(err)
+		        defer rows.Close()
+		        defer db.Close()
+		        return rows.Next()
+		    }()
+	}
+
+	insertWaitGroup := sync.WaitGroup{}
 
 	grabData := func(filePath string, insertQuery string) {
-		defer wg.Done()
+		defer winsertWaitGroup.Done()
 
 		var result map[string]string
 
@@ -95,15 +149,18 @@ func createAndPopulateTables(insertType string) {
 
 	switch insertType {
 	case "foods":
-		wg.Add(1)
-		go grabData("internal/_json/actors/foods.json",
-			`
-            INSERT INTO actors
-                (actor_name, actor_description, treatment_interactions, condition_interactions)
-            VALUES(?, ?, ?, ?)
-        `)
+
+		if !dataExists {
+			insertWaitGroup.Add(1)
+			go grabData("internal/_json/actors/foods.json",
+				`
+                INSERT INTO actors
+                    (actor_name, actor_description, treatment_interactions, condition_interactions)
+                VALUES(?, ?, ?, ?)
+            `)
+		}
 	case "diseases":
-		wg.Add(1)
+		insertWaitGroup.Add(1)
 		go grabData("internal/_json/conditions/diseases.json",
 			`
             INSERT INTO conditions
@@ -111,7 +168,7 @@ func createAndPopulateTables(insertType string) {
             VALUES(?, ?, ?, ?)
         `)
 	case "treatments":
-		wg.Add(1)
+		insertWaitGroup.Add(1)
 		go grabData("internal/_json/treatments/treatments.json",
 			`
             INSERT INTO 
@@ -120,7 +177,7 @@ func createAndPopulateTables(insertType string) {
         `)
 	}
 
-	wg.Wait()
+	insertWaitGroup.Wait()
 }
 
 func insertActors(dataMap map[string]string, insertQuery string) {
