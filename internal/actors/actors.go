@@ -1,22 +1,41 @@
 package actors
 
 import (
-	"fmt"
+	"database/sql"
+	"encoding/json"
+	dbutils "fandm/internal/database/_dbutils"
+	"fandm/internal/utls"
 	"net/http"
 )
 
 func GetActors(w http.ResponseWriter, r *http.Request) {
-	// Get all actors from the database
 	param := r.URL.Path[len("/actors/"):]
-	fmt.Println(param)
+	responseMap := make(map[string]string)
+	query := "SELECT * FROM actors WHERE actor_description LIKE '%" + param + "%'"
 
 	if len(param) >= 4 {
-		// do query
+
+		db, err := sql.Open("mysql", dbutils.GetDbConnectionString())
+		utls.Catch(err)
+		defer db.Close()
+
+		rows, err := db.Query(query)
+		utls.Catch(err)
+		defer rows.Close()
+
+		for rows.Next() {
+			var id string
+			var actorName, actorDescription, treatmentInteractions, conditionInteractions string
+			err := rows.Scan(&id, &actorName, &actorDescription, &treatmentInteractions, &conditionInteractions)
+			responseMap[actorName] = actorDescription
+			utls.Catch(err)
+		}
 	}
 
-	// sql query where we SELECT FROM ACTORS in field actor_description where LIKE is param.
-	// return the result
-	// var query string = "SELECT * FROM actors WHERE actor_description LIKE '%" + param + "%'"
+	jsonResponse, err := json.Marshal(responseMap)
+	utls.Catch(err)
 
-	fmt.Fprintf(w, "The value of 'myParam' is: %s", param)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonResponse)
+	w.WriteHeader(http.StatusOK)
 }
