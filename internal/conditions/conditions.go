@@ -1,4 +1,4 @@
-package actors
+package conditions
 
 import (
 	"context"
@@ -11,10 +11,10 @@ import (
 	"time"
 )
 
-func GetActors(w http.ResponseWriter, r *http.Request) {
-	param := r.URL.Path[len("/actors/"):]
+func GetConditions(w http.ResponseWriter, r *http.Request) {
+	param := r.URL.Path[len("/conditions/"):]
 	responseMap := make(map[string]string)
-	query := "SELECT * FROM actors WHERE actor_description LIKE '%" + param + "%'"
+	query := "SELECT * FROM actors WHERE condition_description LIKE '%" + param + "%'"
 
 	if len(param) >= 4 {
 
@@ -37,9 +37,9 @@ func GetActors(w http.ResponseWriter, r *http.Request) {
 
 		for rows.Next() {
 			var id string
-			var actorName, actorDescription, treatmentInteractions, conditionInteractions string
-			err := rows.Scan(&id, &actorName, &actorDescription, &treatmentInteractions, &conditionInteractions)
-			responseMap[actorName] = actorDescription
+			var conditionName, conditionDescription, actorInteractions, treatmentInteractions string
+			err := rows.Scan(&id, &conditionName, &conditionDescription, &actorInteractions, &treatmentInteractions)
+			responseMap[conditionName] = conditionDescription
 			utls.Catch(err)
 		}
 	}
