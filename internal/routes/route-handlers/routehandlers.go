@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+type SearchResult struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 func handleRouteMethods(routeType string, w http.ResponseWriter, r *http.Request) {
 	var param string
 	var query string
@@ -28,6 +33,8 @@ func handleRouteMethods(routeType string, w http.ResponseWriter, r *http.Request
 	}
 
 	responseMap := make(map[string]string)
+
+	var results []SearchResult
 
 	if len(param) >= 4 {
 
@@ -53,11 +60,12 @@ func handleRouteMethods(routeType string, w http.ResponseWriter, r *http.Request
 			var name, description, firstInteractions, secondInteractions string
 			err := rows.Scan(&id, &name, &description, &firstInteractions, &secondInteractions)
 			responseMap[name] = description
+			results = append(results, SearchResult{Name: name, Description: description})
 			utls.Catch(err)
 		}
 	}
 
-	jsonResponse, err := json.Marshal(responseMap)
+	jsonResponse, err := json.Marshal(results)
 	utls.Catch(err)
 
 	w.Header().Set("Content-Type", "application/json")
