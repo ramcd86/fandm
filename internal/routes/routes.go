@@ -2,7 +2,7 @@ package routes
 
 import (
 	"fandm/internal/register"
-	routehandlers "fandm/internal/routes/route-handlers"
+	resourcehandlers "fandm/internal/routes/route-handlers"
 	"fmt"
 	"net/http"
 )
@@ -10,9 +10,9 @@ import (
 func Routes() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /register", register.Register)
-	mux.HandleFunc("GET /actors/", routehandlers.GetActors)
-	mux.HandleFunc("GET /conditions/", routehandlers.GetConditions)
-	mux.HandleFunc("GET /treatments/", routehandlers.GetTreatments)
+	mux.HandleFunc("GET /actors/", resourcehandlers.GetActors)
+	mux.HandleFunc("GET /conditions/", resourcehandlers.GetConditions)
+	mux.HandleFunc("GET /treatments/", resourcehandlers.GetTreatments)
 
 	serveStatic()
 

@@ -1,4 +1,4 @@
-package routehandlers
+package resourcehandlers
 
 import (
 	"context"
@@ -32,8 +32,6 @@ func handleRouteMethods(routeType string, w http.ResponseWriter, r *http.Request
 		query = "SELECT * FROM conditions WHERE condition_description LIKE '%" + param + "%'"
 	}
 
-	responseMap := make(map[string]string)
-
 	var results []SearchResult
 
 	if len(param) >= 4 {
@@ -59,7 +57,6 @@ func handleRouteMethods(routeType string, w http.ResponseWriter, r *http.Request
 			var id string
 			var name, description, firstInteractions, secondInteractions string
 			err := rows.Scan(&id, &name, &description, &firstInteractions, &secondInteractions)
-			responseMap[name] = description
 			results = append(results, SearchResult{Name: name, Description: description})
 			utls.Catch(err)
 		}
