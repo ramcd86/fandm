@@ -2,6 +2,7 @@ package routes
 
 import (
 	"fandm/internal/register"
+	relationshiphandler "fandm/internal/routes/relationship-handlers"
 	resourcehandlers "fandm/internal/routes/route-handlers"
 	"fmt"
 	"net/http"
@@ -13,6 +14,7 @@ func Routes() {
 	mux.HandleFunc("GET /actors/", resourcehandlers.GetActors)
 	mux.HandleFunc("GET /conditions/", resourcehandlers.GetConditions)
 	mux.HandleFunc("GET /treatments/", resourcehandlers.GetTreatments)
+	mux.HandleFunc("POST /relationship", relationshiphandler.CreateNewRelationship)
 
 	serveStatic()
 
