@@ -62,7 +62,8 @@ func SetUpDatabase() {
 		utls.Catch(err)
 
 		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS reports 
-			( id INT AUTO_INCREMENT PRIMARY KEY, 
+			( id INT AUTO_INCREMENT PRIMARY KEY,
+      reporter_id VARCHAR(255) NOT NULL, 
 			reporter_condition VARCHAR(255) NOT NULL, 
 			reporter_treatment VARCHAR(255) NOT NULL, 
 			reporter_actor VARCHAR(255) NOT NULL);`)
