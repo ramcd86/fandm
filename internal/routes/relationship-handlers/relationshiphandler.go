@@ -19,36 +19,41 @@ type Relationship struct {
 	ReporterTreatment string `json:"reporter_treatment"`
 }
 
-func stringToMap(str string) map[string]int { // HL
-	items := strings.Split(str, ",")
+func stringToMap(str string) map[string]int {
 	m := make(map[string]int)
+	if str == "" {
+		return m
+	}
+	items := strings.Split(str, ",")
 	for _, item := range items {
+		if item == "" {
+			continue
+		}
 		parts := strings.Split(item, ":")
 		if len(parts) == 2 {
 			key := parts[0]
 			value, err := strconv.Atoi(parts[1])
-			if err != nil {
-				value = 0
+			if err == nil {
+				m[key] = value
 			}
-			m[key] = value
 		}
 	}
 	return m
 }
 
 func mapToString(m map[string]int) string {
-	str := ""
+	var str strings.Builder
 	for k, v := range m {
-		str += k + ":" + strconv.Itoa(v) + ","
+		str.WriteString(fmt.Sprintf("%s:%d,", k, v))
 	}
-	return str
+	return strings.TrimRight(str.String(), ",")
 }
 
 func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
-	var incomingRelationship Relationship
+	var incomingRelationship Relationship 
 	err := json.NewDecoder(r.Body).Decode(&incomingRelationship)
 	if err != nil {
-		http.Error(w, string("No data sent."), http.StatusBadRequest)
+		http.Error(w, "No data sent.", http.StatusBadRequest)
 		return
 	}
 
@@ -57,27 +62,31 @@ func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var dataInserted bool
-	var actorInserted bool
-	// var conditionInserted bool
-	// var treatmentInserted bool
+	reportInsertDone := make(chan bool)
+	newRelationshipDone := make(chan bool)
 
-	actorInsertdone := make(chan bool)
-	dataInsertdone := make(chan bool)
-	// conditionInsertdone := make(chan bool)
-	// treatmentInsertdone := make(chan bool)
+	go insertReport(&incomingRelationship, reportInsertDone)
 
-	go insertReport(&incomingRelationship, dataInsertdone)
-	go insertActor(&incomingRelationship, actorInsertdone)
-
-	dataInserted = <-dataInsertdone
-
-	if !dataInserted || !actorInserted {
-		w.WriteHeader(http.StatusInternalServerError)
+	reportInserted := <-reportInsertDone
+	if (!reportInserted) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Failed to insert data into database: User has already submitted this report."))
 		return
 	}
 
+	go insertRelationship(&incomingRelationship, newRelationshipDone)
+
+	relationshipInserted := <-newRelationshipDone
+
+	if (!relationshipInserted) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Failed to insert data into database: Relationship insertion error."))
+		return
+
+	}
+	
 	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Successfully inserted data into database."))
 }
 
 func insertReport(incomingRelationship *Relationship, done chan bool) {
@@ -85,19 +94,17 @@ func insertReport(incomingRelationship *Relationship, done chan bool) {
 	defer cancel()
 	db, err := sql.Open("mysql", dbutils.GetDbConnectionString())
 	if err != nil {
-		panic(err.Error())
+		done <- false
+		return
 	}
 	defer db.Close()
 
-	query, err := db.QueryContext(ctx, "SELECT 1 FROM reports WHERE reporter_id = "+strconv.Itoa(int(incomingRelationship.ReporterID))+" LIMIT 1")
+	query, err := db.QueryContext(ctx, "SELECT 1 FROM reports WHERE reporter_id = ? LIMIT 1", incomingRelationship.ReporterID)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			fmt.Println("QueryContext timeout")
-			done <- false
-			return
-		}
-		panic(err.Error())
+		done <- false
+		return
 	}
+	defer query.Close()
 
 	if query.Next() {
 		fmt.Println("Relationship already exists in database.")
@@ -107,73 +114,151 @@ func insertReport(incomingRelationship *Relationship, done chan bool) {
 
 	statement, err := db.PrepareContext(ctx, "INSERT INTO reports (reporter_id, reporter_actor, reporter_condition, reporter_treatment) VALUES (?, ?, ?, ?)")
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			fmt.Println("QueryContext timeout")
-			done <- false
-			return
-		}
-		panic(err.Error())
+		done <- false
+		return
 	}
+	defer statement.Close()
 
 	_, err = statement.ExecContext(ctx, incomingRelationship.ReporterID, incomingRelationship.ReporterActor, incomingRelationship.ReporterCondition, incomingRelationship.ReporterTreatment)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			fmt.Println("QueryContext timeout")
-			done <- false
-			return
-		}
-		panic(err.Error())
+		done <- false
+		return
 	}
 
 	fmt.Println("Successfully inserted relationship into database.")
-
 	done <- true
 }
 
-func insertActor(incomingRelationship *Relationship, done chan bool) {
+func insertRelationship(incomingRelationship *Relationship, done chan bool) {
+
+	var checkString string
+	var queryString string
+	var newInsertQueryString string
+	var itemToUpdate string
+	var firstRelationship string
+	var secondRelationship string
+
+	actorInserted := make(chan bool)
+	conditionInserted := make(chan bool)
+	treatmentInserted := make(chan bool)
+
+	for _, entry := range []string{incomingRelationship.ReporterActor, incomingRelationship.ReporterCondition, incomingRelationship.ReporterTreatment} {
+		
+		// if actor is of type 'ReporterActor' then continue;
+		if entry == incomingRelationship.ReporterActor {
+			itemToUpdate = entry
+			checkString = "SELECT treatment_interactions, condition_interactions FROM actors WHERE actor_name = ? LIMIT 1"
+			queryString = "UPDATE actors SET treatment_interactions = ?, condition_interactions = ? WHERE actor_name = ?"
+			firstRelationship = incomingRelationship.ReporterTreatment
+			secondRelationship = incomingRelationship.ReporterCondition
+			newInsertQueryString = "INSERT INTO actors (actor_name, treatment_interactions, condition_interactions) VALUES (?, ?, ?)"
+			go performInsert(itemToUpdate, checkString, queryString, newInsertQueryString, 
+				firstRelationship, secondRelationship, actorInserted)
+		}
+		// if condition is of type 'ReporterCondition' then continue;
+		if entry == incomingRelationship.ReporterCondition {
+			itemToUpdate = entry
+			checkString = "SELECT actor_interactions, treatment_interactions FROM conditions WHERE condition_name = ? LIMIT 1"
+			queryString = "UPDATE conditions SET actor_interactions = ?, treatment_interactions = ? WHERE condition_name = ?"
+			firstRelationship = incomingRelationship.ReporterActor
+			secondRelationship = incomingRelationship.ReporterTreatment
+			newInsertQueryString = "INSERT INTO conditions (condition_name, actor_interactions, treatment_interactions) VALUES (?, ?, ?)"
+			go performInsert(itemToUpdate, checkString, queryString, newInsertQueryString,
+				firstRelationship, secondRelationship, conditionInserted)
+		}
+
+		// if treatment is of type 'ReporterTreatment' then continue;
+		if entry == incomingRelationship.ReporterTreatment {
+			itemToUpdate = entry
+			checkString = "SELECT actor_interactions, condition_interactions FROM treatments WHERE treatment_name = ? LIMIT 1"
+			queryString = "UPDATE treatments SET actor_interactions = ?, condition_interactions = ? WHERE treatment_name = ?"
+			firstRelationship = incomingRelationship.ReporterActor
+			secondRelationship = incomingRelationship.ReporterCondition
+			newInsertQueryString = "INSERT INTO treatments (treatment_name, actor_interactions, condition_interactions) VALUES (?, ?, ?)"
+			go performInsert(itemToUpdate, checkString, queryString, newInsertQueryString,
+				firstRelationship, secondRelationship, treatmentInserted)
+		}
+	}
+
+	actorInsertDone := <-actorInserted
+	conditionInsertDone := <-conditionInserted
+	treatmentInsertDone := <-treatmentInserted
+
+	if (actorInsertDone && conditionInsertDone && treatmentInsertDone) {
+		done <- true
+	} else {
+		done <- false
+	}
+
+}
+
+
+func performInsert(itemToUpdate string, checkString string, queryString string, newInsertQueryString string, firstRelationship string, secondRelationship string, done chan bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	db, err := sql.Open("mysql", dbutils.GetDbConnectionString())
 	if err != nil {
 		done <- false
+		return
 	}
 	defer db.Close()
 
-	query, err := db.QueryContext(ctx, "SELECT * FROM actors WHERE actor_name = '"+incomingRelationship.ReporterActor+"' LIMIT 1")
+	query, err := db.QueryContext(ctx, checkString, itemToUpdate)
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			fmt.Println("QueryContext timeout")
-		}
 		done <- false
+		return
 	}
 	defer query.Close()
 
-	for query.Next() {
-		var id string
-		var name, description, firstInteractions, secondInteractions string
-		err := query.Scan(&id, &name, &description, &firstInteractions, &secondInteractions)
+	var firstInteractions, secondInteractions string
+	if query.Next() {
+		err = query.Scan(&firstInteractions, &secondInteractions)
 		if err != nil {
-			fmt.Println(err)
 			done <- false
+			return
 		}
-		firstInteractionsMap := stringToMap(firstInteractions)
-		secondInteractionsMap := stringToMap(secondInteractions)
-		firstInteractionsMap[incomingRelationship.ReporterCondition]++
-		secondInteractionsMap[incomingRelationship.ReporterTreatment]++
-		firstInteractions = mapToString(firstInteractionsMap)
-		secondInteractions = mapToString(secondInteractionsMap)
-		statement, err := db.PrepareContext(ctx, "UPDATE actors SET treatment_interactions = ?, condition_interactions = ? WHERE actor_name = ?")
+
+		firstMap := stringToMap(firstInteractions)
+		secondMap := stringToMap(secondInteractions)
+
+		secondMap[secondRelationship]++
+		firstMap[firstRelationship]++
+
+		firstInteractions = mapToString(firstMap)
+		secondInteractions = mapToString(secondMap)
+
+		statement, err := db.PrepareContext(ctx, queryString)
 		if err != nil {
-			fmt.Println(err)
 			done <- false
+			return
 		}
-		_, err = statement.ExecContext(ctx, secondInteractions, firstInteractions, incomingRelationship.ReporterActor)
+		defer statement.Close()
+
+		_, err = statement.ExecContext(ctx, firstInteractions, secondInteractions, itemToUpdate)
 		if err != nil {
-			fmt.Println(err)
 			done <- false
+			return
+		}
+		done <- true
+	} else {
+		secondMap := map[string]int{secondRelationship: 1}
+		firstMap := map[string]int{firstRelationship: 1}
+
+		secondInteractions = mapToString(secondMap)
+		firstInteractions = mapToString(firstMap)
+
+		statement, err := db.PrepareContext(ctx, newInsertQueryString)
+		if err != nil {
+			done <- false
+			return
+		}
+		defer statement.Close()
+
+		_, err = statement.ExecContext(ctx, itemToUpdate, firstInteractions, secondInteractions)
+		if err != nil {
+			done <- false
+			return
 		}
 		done <- true
 	}
-
-	done <- true
 }
