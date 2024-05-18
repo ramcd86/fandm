@@ -15,6 +15,9 @@ func Routes() {
 	mux.HandleFunc("GET /conditions/", resourcehandlers.GetConditions)
 	mux.HandleFunc("GET /treatments/", resourcehandlers.GetTreatments)
 	mux.HandleFunc("POST /relationship", relationshiphandler.CreateNewRelationship)
+	mux.HandleFunc("GET /actors/details/", resourcehandlers.GetSpecificActor)
+	mux.HandleFunc("GET /conditions/details/", resourcehandlers.GetSpecificCondition)
+	mux.HandleFunc("GET /treatments/details/", resourcehandlers.GetSpecificTreatment)
 
 	serveStatic()
 
