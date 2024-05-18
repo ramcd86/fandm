@@ -26,7 +26,7 @@ type DetailedResult struct {
 
 func handeBasicSearch(routeType string, w http.ResponseWriter, r *http.Request) {
 
-fmt.Println("routeType: ", routeType)
+	fmt.Println("routeType: ", routeType)
 
 	var param string
 	var query string
