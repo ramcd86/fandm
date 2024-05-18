@@ -5,10 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	dbutils "fandm/internal/database/_dbutils"
+	utils "fandm/internal/utls"
 	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -19,38 +18,8 @@ type Relationship struct {
 	ReporterTreatment string `json:"reporter_treatment"`
 }
 
-func stringToMap(str string) map[string]int {
-	m := make(map[string]int)
-	if str == "" {
-		return m
-	}
-	items := strings.Split(str, ",")
-	for _, item := range items {
-		if item == "" {
-			continue
-		}
-		parts := strings.Split(item, ":")
-		if len(parts) == 2 {
-			key := parts[0]
-			value, err := strconv.Atoi(parts[1])
-			if err == nil {
-				m[key] = value
-			}
-		}
-	}
-	return m
-}
-
-func mapToString(m map[string]int) string {
-	var str strings.Builder
-	for k, v := range m {
-		str.WriteString(fmt.Sprintf("%s:%d,", k, v))
-	}
-	return strings.TrimRight(str.String(), ",")
-}
-
 func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
-	var incomingRelationship Relationship 
+	var incomingRelationship Relationship
 	err := json.NewDecoder(r.Body).Decode(&incomingRelationship)
 	if err != nil {
 		http.Error(w, "No data sent.", http.StatusBadRequest)
@@ -68,7 +37,7 @@ func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
 	go insertReport(&incomingRelationship, reportInsertDone)
 
 	reportInserted := <-reportInsertDone
-	if (!reportInserted) {
+	if !reportInserted {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Failed to insert data into database: User has already submitted this report."))
 		return
@@ -78,13 +47,12 @@ func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
 
 	relationshipInserted := <-newRelationshipDone
 
-	if (!relationshipInserted) {
+	if !relationshipInserted {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Failed to insert data into database: Relationship insertion error."))
 		return
-
 	}
-	
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Successfully inserted data into database."))
 }
@@ -143,7 +111,7 @@ func insertRelationship(incomingRelationship *Relationship, done chan bool) {
 	treatmentInserted := make(chan bool)
 
 	for _, entry := range []string{incomingRelationship.ReporterActor, incomingRelationship.ReporterCondition, incomingRelationship.ReporterTreatment} {
-		
+
 		// if actor is of type 'ReporterActor' then continue;
 		if entry == incomingRelationship.ReporterActor {
 			itemToUpdate = entry
@@ -152,7 +120,7 @@ func insertRelationship(incomingRelationship *Relationship, done chan bool) {
 			firstRelationship = incomingRelationship.ReporterTreatment
 			secondRelationship = incomingRelationship.ReporterCondition
 			newInsertQueryString = "INSERT INTO actors (actor_name, treatment_interactions, condition_interactions) VALUES (?, ?, ?)"
-			go performInsert(itemToUpdate, checkString, queryString, newInsertQueryString, 
+			go performInsert(itemToUpdate, checkString, queryString, newInsertQueryString,
 				firstRelationship, secondRelationship, actorInserted)
 		}
 		// if condition is of type 'ReporterCondition' then continue;
@@ -184,14 +152,13 @@ func insertRelationship(incomingRelationship *Relationship, done chan bool) {
 	conditionInsertDone := <-conditionInserted
 	treatmentInsertDone := <-treatmentInserted
 
-	if (actorInsertDone && conditionInsertDone && treatmentInsertDone) {
+	if actorInsertDone && conditionInsertDone && treatmentInsertDone {
 		done <- true
 	} else {
 		done <- false
 	}
 
 }
-
 
 func performInsert(itemToUpdate string, checkString string, queryString string, newInsertQueryString string, firstRelationship string, secondRelationship string, done chan bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -218,14 +185,14 @@ func performInsert(itemToUpdate string, checkString string, queryString string, 
 			return
 		}
 
-		firstMap := stringToMap(firstInteractions)
-		secondMap := stringToMap(secondInteractions)
+		firstMap := utils.StringToMap(firstInteractions)
+		secondMap := utils.StringToMap(secondInteractions)
 
-		secondMap[secondRelationship]++
-		firstMap[firstRelationship]++
+		secondMap[secondRelationship] = secondMap[secondRelationship].(int) + 1
+		firstMap[firstRelationship] = firstMap[firstRelationship].(int) + 1
 
-		firstInteractions = mapToString(firstMap)
-		secondInteractions = mapToString(secondMap)
+		firstInteractions = utils.MapToString(firstMap)
+		secondInteractions = utils.MapToString(secondMap)
 
 		statement, err := db.PrepareContext(ctx, queryString)
 		if err != nil {
@@ -241,11 +208,11 @@ func performInsert(itemToUpdate string, checkString string, queryString string, 
 		}
 		done <- true
 	} else {
-		secondMap := map[string]int{secondRelationship: 1}
-		firstMap := map[string]int{firstRelationship: 1}
+		secondMap := map[string]interface{}{secondRelationship: 1}
+		firstMap := map[string]interface{}{firstRelationship: 1}
 
-		secondInteractions = mapToString(secondMap)
-		firstInteractions = mapToString(firstMap)
+		secondInteractions = utils.MapToString(secondMap)
+		firstInteractions = utils.MapToString(firstMap)
 
 		statement, err := db.PrepareContext(ctx, newInsertQueryString)
 		if err != nil {
