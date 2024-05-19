@@ -9,7 +9,6 @@ import (
 )
 
 func Routes() {
-	
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /register", register.Register)
 	mux.HandleFunc("GET /actors/", resourcehandlers.GetActors)
