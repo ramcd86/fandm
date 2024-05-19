@@ -19,6 +19,7 @@ type Relationship struct {
 }
 
 func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
+	utils.EnableCors(&w)
 	var incomingRelationship Relationship
 	err := json.NewDecoder(r.Body).Decode(&incomingRelationship)
 	if err != nil {
@@ -157,7 +158,6 @@ func insertRelationship(incomingRelationship *Relationship, done chan bool) {
 	} else {
 		done <- false
 	}
-
 }
 
 func performInsert(itemToUpdate string, checkString string, queryString string, newInsertQueryString string, firstRelationship string, secondRelationship string, done chan bool) {
