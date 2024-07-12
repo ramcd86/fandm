@@ -52,8 +52,15 @@ func handeBasicSearch(routeType string, w http.ResponseWriter, r *http.Request) 
 		resultSuccessful := <-basicResultsSuccessful
 
 		if !resultSuccessful {
+			errorMessage := map[string]string{"error": "Query failed."}
+			errorJSON, err := json.Marshal(errorMessage)
+			if err != nil {
+				// Handle error
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Query failed."))
+			w.Write(errorJSON)
 			return
 		}
 
@@ -63,8 +70,15 @@ func handeBasicSearch(routeType string, w http.ResponseWriter, r *http.Request) 
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(jsonResponse)
 	} else {
+		errorMessage := map[string]string{"error": "Query failed."}
+		errorJSON, err := json.Marshal(errorMessage)
+		if err != nil {
+			// Handle error
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Query too short."))
+		w.Write(errorJSON)
 		return
 	}
 
@@ -124,8 +138,15 @@ func handleSpecificSearch(routeType string, w http.ResponseWriter, r *http.Reque
 	resultSuccessful := <-specificResultsSuccessful
 
 	if !resultSuccessful {
+		errorMessage := map[string]string{"error": "Query failed."}
+		errorJSON, err := json.Marshal(errorMessage)
+		if err != nil {
+			// Handle error
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Query failed."))
+		w.Write(errorJSON)
 		return
 	}
 
@@ -191,31 +212,25 @@ func HandleDetailedResources(routeType string, query string, done chan bool, res
 }
 
 func GetTreatments(w http.ResponseWriter, r *http.Request) {
-	utils.EnableCors(&w)
 	handeBasicSearch("treatments", w, r)
 }
 
 func GetConditions(w http.ResponseWriter, r *http.Request) {
-	utils.EnableCors(&w)
 	handeBasicSearch("conditions", w, r)
 }
 
 func GetActors(w http.ResponseWriter, r *http.Request) {
-	utils.EnableCors(&w)
 	handeBasicSearch("actors", w, r)
 }
 
 func GetSpecificTreatment(w http.ResponseWriter, r *http.Request) {
-	utils.EnableCors(&w)
 	handleSpecificSearch("treatments", w, r)
 }
 
 func GetSpecificCondition(w http.ResponseWriter, r *http.Request) {
-	utils.EnableCors(&w)
 	handleSpecificSearch("conditions", w, r)
 }
 
 func GetSpecificActor(w http.ResponseWriter, r *http.Request) {
-	utils.EnableCors(&w)
 	handleSpecificSearch("actors", w, r)
 }

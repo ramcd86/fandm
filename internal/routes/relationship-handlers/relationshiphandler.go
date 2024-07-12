@@ -12,14 +12,14 @@ import (
 )
 
 type Relationship struct {
-	ReporterID        int32  `json:"reporter_id"`
+	ReporterID        string `json:"reporter_id"`
 	ReporterActor     string `json:"reporter_actor"`
 	ReporterCondition string `json:"reporter_condition"`
 	ReporterTreatment string `json:"reporter_treatment"`
 }
 
 func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
-	utils.EnableCors(&w)
+
 	var incomingRelationship Relationship
 	err := json.NewDecoder(r.Body).Decode(&incomingRelationship)
 	if err != nil {
@@ -27,7 +27,7 @@ func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if incomingRelationship.ReporterID == 0 || incomingRelationship.ReporterActor == "" || incomingRelationship.ReporterCondition == "" || incomingRelationship.ReporterTreatment == "" {
+	if incomingRelationship.ReporterID == "" || incomingRelationship.ReporterActor == "" || incomingRelationship.ReporterCondition == "" || incomingRelationship.ReporterTreatment == "" {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -39,8 +39,16 @@ func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
 
 	reportInserted := <-reportInsertDone
 	if !reportInserted {
+
+		errorMessage := map[string]string{"error": "Failed to insert data into database: User has already submitted this report."}
+		errorJSON, err := json.Marshal(errorMessage)
+		if err != nil {
+			// Handle error
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Failed to insert data into database: User has already submitted this report."))
+		w.Write(errorJSON)
 		return
 	}
 
@@ -49,13 +57,27 @@ func CreateNewRelationship(w http.ResponseWriter, r *http.Request) {
 	relationshipInserted := <-newRelationshipDone
 
 	if !relationshipInserted {
+		errorMessage := map[string]string{"error": "Failed to insert data into database: Relationship insertion error."}
+		errorJSON, err := json.Marshal(errorMessage)
+		if err != nil {
+			// Handle error
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Failed to insert data into database: Relationship insertion error."))
+		w.Write(errorJSON)
 		return
 	}
 
+	errorMessage := map[string]string{"error": "Failed to insert data into database: Relationship insertion error."}
+	successMessage, err := json.Marshal(errorMessage)
+	if err != nil {
+		// Handle error
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Successfully inserted data into database."))
+	w.Write(successMessage)
 }
 
 func insertReport(incomingRelationship *Relationship, done chan bool) {
@@ -67,6 +89,9 @@ func insertReport(incomingRelationship *Relationship, done chan bool) {
 		return
 	}
 	defer db.Close()
+
+	fmt.Println("GOT HERE!")
+	fmt.Println(incomingRelationship)
 
 	query, err := db.QueryContext(ctx, "SELECT 1 FROM reports WHERE reporter_id = ? LIMIT 1", incomingRelationship.ReporterID)
 	if err != nil {

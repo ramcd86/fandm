@@ -14,7 +14,6 @@ import (
 )
 
 func GetDbConnectionString() string {
-	fmt.Println(environment.DbConnection)
 	return environment.DbConnection["DB_USER"] +
 		":" + environment.DbConnection["DB_PASS"] +
 		"@tcp(" + environment.DbConnection["DB_HOST"] +
@@ -27,7 +26,6 @@ func TestConnection() bool {
 	utls.Catch(err)
 	err = db.Ping()
 	utls.Catch(err)
-	fmt.Println("Successfully connected to the Mysql Database")
 
 	return true
 }
@@ -79,7 +77,6 @@ func createAndPopulateTables(insertType string) {
 	var dataExists bool
 
 	checkData := func(checkType string, done chan bool) {
-		fmt.Println("Checking data for " + checkType)
 		db, err := sql.Open("mysql", GetDbConnectionString())
 		utls.Catch(err)
 		defer db.Close()
